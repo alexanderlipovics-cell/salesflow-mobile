@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../theme';
+import { getUpcomingTask, getDaysSinceStart } from '../utils/dateHelpers';
 
 const STATUS_COLORS: Record<string, string> = {
   NEW: '#06b6d4',
@@ -12,6 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
   CONVERSATION: '#3b82f6',
   CLOSING: '#8b5cf6',
   GHOSTING: '#ef4444',
+  CUSTOMER: '#10b981',
 };
 
 const PLATFORM_LINKS: Record<string, (name: string, msg: string) => string> = {
@@ -27,6 +29,11 @@ export default function LeadDetailScreen({ route, navigation }: any) {
   
   const [generatedMessage, setGeneratedMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Customer Lifecycle
+  const nextTask = lead.status === 'CUSTOMER' && lead.customer_since 
+    ? getUpcomingTask(lead.customer_since) 
+    : null;
 
   const generateMessage = async () => {
     setLoading(true);
@@ -133,6 +140,35 @@ export default function LeadDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
+        {/* Customer Lifecycle Card */}
+        {lead.status === 'CUSTOMER' && nextTask && (
+          <View style={styles.lifecycleCard}>
+            <View style={styles.lifecycleHeader}>
+              <Text style={styles.lifecycleTitle}>Kunden-Reise (Tag {getDaysSinceStart(lead.customer_since)})</Text>
+              <Ionicons name="infinite" size={16} color={COLORS.success} />
+            </View>
+            
+            <View style={styles.taskRow}>
+              <View style={styles.taskIcon}>
+                <Text style={{fontSize: 20}}>{nextTask.type === 'CALL' ? '📞' : '💬'}</Text>
+              </View>
+              <View style={{flex: 1}}>
+                <Text style={styles.taskName}>{nextTask.title}</Text>
+                <Text style={styles.taskContext}>Fällig: Tag {nextTask.dayOffset}</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.scriptBtn} 
+                onPress={() => {
+                  setGeneratedMessage(null);
+                  generateMessage();
+                }}
+              >
+                <Text style={styles.scriptBtnText}>Skript</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* AI Generate Section */}
         <View style={styles.aiSection}>
           <Text style={styles.sectionTitle}>✨ AI Nachricht generieren</Text>
@@ -227,4 +263,14 @@ const styles = StyleSheet.create({
   actionsSection: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12 },
   actionText: { flex: 1, fontSize: 15, color: COLORS.text },
+  // Lifecycle styles
+  lifecycleCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, marginBottom: 20, borderLeftWidth: 4, borderLeftColor: COLORS.success },
+  lifecycleHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  lifecycleTitle: { color: COLORS.textSecondary, fontSize: 12, textTransform: 'uppercase', fontWeight: '700' },
+  taskRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  taskIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.success + '20', justifyContent: 'center', alignItems: 'center' },
+  taskName: { color: COLORS.text, fontWeight: '700', fontSize: 15 },
+  taskContext: { color: COLORS.textSecondary, fontSize: 12 },
+  scriptBtn: { backgroundColor: COLORS.success, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  scriptBtnText: { color: '#000', fontWeight: '700', fontSize: 13 },
 });
