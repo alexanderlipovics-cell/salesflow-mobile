@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, Scro
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import { COLORS } from '../theme';
 
 interface ScriptOption {
   id: string;
@@ -41,22 +42,22 @@ export default function MagicScriptScreen({ route, navigation }: any) {
   };
 
   const getToneColor = (tone: string) => {
-    switch(tone) { case 'EMPATHIC': return '#10B981'; case 'DIRECT': return '#3B82F6'; default: return '#F59E0B'; }
+    switch(tone) { case 'EMPATHIC': return COLORS.success; case 'DIRECT': return '#3B82F6'; default: return COLORS.warning; }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}><Ionicons name="close" size={24} color="#9CA3AF" /></TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}><Ionicons name="close" size={24} color={COLORS.textSecondary} /></TouchableOpacity>
         <Text style={styles.headerTitle}>AI Copilot</Text>
         <View style={{ width: 40 }} />
       </View>
       <View style={styles.content}>
         {loading ? (
           <View style={styles.loadingContainer}>
-            <Ionicons name="sparkles" size={48} color="#8B5CF6" />
-            <ActivityIndicator size="large" color="#8B5CF6" style={{ marginTop: 24 }} />
+            <Ionicons name="sparkles" size={48} color={COLORS.secondary} />
+            <ActivityIndicator size="large" color={COLORS.secondary} style={{ marginTop: 24 }} />
             <Text style={styles.loadingText}>Analysiere {leadName}...</Text>
           </View>
         ) : (
@@ -67,7 +68,7 @@ export default function MagicScriptScreen({ route, navigation }: any) {
                 <TouchableOpacity key={opt.id} style={[styles.optionCard, { borderLeftColor: getToneColor(opt.tone) }]} onPress={() => handleCopy(opt.content)}>
                   <View style={styles.cardHeader}>
                     <Text style={[styles.badgeText, { color: getToneColor(opt.tone) }]}>{opt.label}</Text>
-                    <Ionicons name="copy-outline" size={20} color="#6B7280" />
+                    <Ionicons name="copy-outline" size={20} color={COLORS.textMuted} />
                   </View>
                   <Text style={styles.scriptContent}>"{opt.content}"</Text>
                 </TouchableOpacity>
@@ -81,18 +82,17 @@ export default function MagicScriptScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#262626' },
-  closeBtn: { padding: 8, backgroundColor: '#171717', borderRadius: 20 },
-  headerTitle: { color: 'white', fontSize: 18, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  closeBtn: { padding: 8, backgroundColor: COLORS.surface, borderRadius: 20 },
+  headerTitle: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
   content: { flex: 1 },
   scrollContent: { padding: 20 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: 'white', fontSize: 18, marginTop: 24 },
-  sectionTitle: { color: 'white', fontSize: 16, fontWeight: '700', marginBottom: 16 },
-  optionCard: { backgroundColor: '#171717', borderRadius: 16, padding: 20, marginBottom: 16, borderLeftWidth: 4 },
+  loadingText: { color: COLORS.text, fontSize: 18, marginTop: 24 },
+  sectionTitle: { color: COLORS.text, fontSize: 16, fontWeight: '700', marginBottom: 16 },
+  optionCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 20, marginBottom: 16, borderLeftWidth: 4 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   badgeText: { fontSize: 12, fontWeight: '700' },
-  scriptContent: { color: '#E5E7EB', fontSize: 16, lineHeight: 24 },
+  scriptContent: { color: COLORS.textSecondary, fontSize: 16, lineHeight: 24 },
 });
-

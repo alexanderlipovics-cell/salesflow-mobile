@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { COLORS } from '../theme';
 
 interface Lead { id: string; name: string; status: 'NEW' | 'CONVERSATION' | 'CLOSING' | 'GHOSTING'; lastMsg: string; time: string; temperature: number; unread: boolean; }
 
@@ -29,7 +30,7 @@ export default function LeadListScreen({ navigation }: any) {
   });
 
   const getStatusColor = (status: string) => {
-    switch (status) { case 'CLOSING': return '#10B981'; case 'GHOSTING': return '#EF4444'; case 'NEW': return '#3B82F6'; default: return '#9CA3AF'; }
+    switch (status) { case 'CLOSING': return COLORS.success; case 'GHOSTING': return COLORS.error; case 'NEW': return '#3B82F6'; default: return COLORS.textSecondary; }
   };
 
   return (
@@ -37,11 +38,11 @@ export default function LeadListScreen({ navigation }: any) {
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Meine Kontakte</Text>
-        <TouchableOpacity style={styles.addBtn}><Ionicons name="add" size={24} color="black" /></TouchableOpacity>
+        <TouchableOpacity style={styles.addBtn}><Ionicons name="add" size={24} color={COLORS.background} /></TouchableOpacity>
       </View>
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#6B7280" />
-        <TextInput style={styles.searchInput} placeholder="Suchen..." placeholderTextColor="#6B7280" value={searchQuery} onChangeText={setSearchQuery} />
+        <Ionicons name="search" size={20} color={COLORS.textMuted} />
+        <TextInput style={styles.searchInput} placeholder="Suchen..." placeholderTextColor={COLORS.textMuted} value={searchQuery} onChangeText={setSearchQuery} />
       </View>
       <FlatList horizontal data={TABS} contentContainerStyle={styles.tabsList} keyExtractor={item => item} renderItem={({ item }) => (
         <TouchableOpacity style={[styles.tabChip, activeTab === item && styles.activeTabChip]} onPress={() => { Haptics.selectionAsync(); setActiveTab(item); }}>
@@ -65,25 +66,24 @@ export default function LeadListScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, marginBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: 'white' },
-  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center' },
-  searchContainer: { marginHorizontal: 20, marginBottom: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: '#171717', borderRadius: 12, paddingHorizontal: 12, height: 44 },
-  searchInput: { flex: 1, color: 'white', fontSize: 16, marginLeft: 8 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text },
+  addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  searchContainer: { marginHorizontal: 20, marginBottom: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 12, paddingHorizontal: 12, height: 44 },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: 16, marginLeft: 8 },
   tabsList: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
-  tabChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#171717' },
-  activeTabChip: { backgroundColor: '#262626', borderColor: '#10B981', borderWidth: 1 },
-  tabText: { color: '#9CA3AF', fontWeight: '600' },
-  activeTabText: { color: '#10B981' },
+  tabChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.surface },
+  activeTabChip: { backgroundColor: COLORS.card, borderColor: COLORS.primary, borderWidth: 1 },
+  tabText: { color: COLORS.textSecondary, fontWeight: '600' },
+  activeTabText: { color: COLORS.primary },
   listContent: { paddingHorizontal: 20 },
-  leadCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#171717', padding: 16, borderRadius: 16, marginBottom: 12 },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#262626', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  avatarText: { color: 'white', fontSize: 18, fontWeight: '700' },
+  leadCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, padding: 16, borderRadius: 16, marginBottom: 12 },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.card, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatarText: { color: COLORS.text, fontSize: 18, fontWeight: '700' },
   cardContent: { flex: 1 },
-  leadName: { color: 'white', fontSize: 16, fontWeight: '700' },
-  lastMsg: { color: '#9CA3AF', fontSize: 13 },
+  leadName: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  lastMsg: { color: COLORS.textSecondary, fontSize: 13 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   statusText: { fontSize: 10, fontWeight: '700' },
 });
-
