@@ -1,194 +1,124 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, StatusBar, FlatList, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { COLORS } from '../theme';
 
-interface ChatPreview {
+interface Message {
   id: string;
-  name: string;
-  lastMessage: string;
-  time: string;
-  unread: number;
-  avatar: string;
-  platform: 'instagram' | 'whatsapp' | 'facebook' | 'telegram';
+  text: string;
+  sender: 'user' | 'ai';
+  timestamp: Date;
 }
 
-const CHATS: ChatPreview[] = [
-  { id: '1', name: 'Lisa Müller', lastMessage: 'Bin mir noch unsicher...', time: '2d', unread: 0, avatar: 'L', platform: 'instagram' },
-  { id: '2', name: 'Markus Weber', lastMessage: 'Warte auf den Link!', time: '2h', unread: 3, avatar: 'M', platform: 'whatsapp' },
-  { id: '3', name: 'Sarah K.', lastMessage: 'Was genau kostet das?', time: '5h', unread: 1, avatar: 'S', platform: 'instagram' },
-  { id: '4', name: 'Tom B.', lastMessage: 'Interessantes Profil!', time: '1d', unread: 0, avatar: 'T', platform: 'facebook' },
-  { id: '5', name: 'Julia F.', lastMessage: 'Danke für die Info! 🙏', time: '3d', unread: 0, avatar: 'J', platform: 'telegram' },
-  { id: '6', name: 'Max Schneider', lastMessage: 'Klingt gut, erzähl mehr!', time: '4h', unread: 2, avatar: 'M', platform: 'whatsapp' },
-];
+export default function ChatScreen() {
+  const [messages, setMessages] = useState<Message[]>([
+    { id: '1', text: 'Hey! 👋 Ich bin FELLO, dein AI Sales Copilot. Frag mich alles über Verkauf, Einwandbehandlung oder lass mich einen Lead analysieren.', sender: 'ai', timestamp: new Date() }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
 
-const PLATFORMS = ['Alle', 'Instagram', 'WhatsApp', 'Facebook', 'Telegram'];
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+    
+    const userMsg: Message = { id: Date.now().toString(), text: input, sender: 'user', timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
 
-const getPlatformIcon = (platform: string) => {
-  switch (platform) {
-    case 'instagram': return 'logo-instagram';
-    case 'whatsapp': return 'logo-whatsapp';
-    case 'facebook': return 'logo-facebook';
-    case 'telegram': return 'paper-plane';
-    default: return 'chatbubble';
-  }
-};
-
-const getPlatformColor = (platform: string) => {
-  switch (platform) {
-    case 'instagram': return '#E4405F';
-    case 'whatsapp': return '#25D366';
-    case 'facebook': return '#1877F2';
-    case 'telegram': return '#0088CC';
-    default: return COLORS.textSecondary;
-  }
-};
-
-export default function ChatScreen({ navigation }: any) {
-  const [activePlatform, setActivePlatform] = useState('Alle');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredChats = CHATS.filter(chat => {
-    const matchesSearch = chat.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPlatform = activePlatform === 'Alle' || chat.platform.toLowerCase() === activePlatform.toLowerCase();
-    return matchesSearch && matchesPlatform;
-  });
-
-  const renderChat = ({ item }: { item: ChatPreview }) => (
-    <TouchableOpacity
-      style={styles.chatCard}
-      onPress={() => {
-        Haptics.selectionAsync();
-        navigation.navigate('LeadDetailScreen', { leadId: item.id });
-      }}
-    >
-      <View style={styles.avatarContainer}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.avatar}</Text>
-        </View>
-        <View style={[styles.platformBadge, { backgroundColor: getPlatformColor(item.platform) }]}>
-          <Ionicons name={getPlatformIcon(item.platform) as any} size={10} color={COLORS.text} />
-        </View>
-      </View>
-      <View style={styles.chatContent}>
-        <View style={styles.chatHeader}>
-          <Text style={styles.chatName}>{item.name}</Text>
-          <Text style={styles.chatTime}>{item.time}</Text>
-        </View>
-        <View style={styles.chatFooter}>
-          <Text style={styles.chatMessage} numberOfLines={1}>{item.lastMessage}</Text>
-          {item.unread > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadText}>{item.unread}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+    try {
+      const response = await fetch('https://salesflow-ai.onrender.com/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: input, conversation_history: [] })
+      });
+      
+      const data = await response.json();
+      const aiMsg: Message = { id: (Date.now() + 1).toString(), text: data.response || data.message || 'Hmm, da ist was schiefgelaufen.', sender: 'ai', timestamp: new Date() };
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (e) {
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), text: 'Verbindung fehlgeschlagen. Prüfe deine Internetverbindung.', sender: 'ai', timestamp: new Date() }]);
+    }
+    
+    setLoading(false);
+    setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Chats</Text>
-        <TouchableOpacity style={styles.syncBtn}>
-          <Ionicons name="sync" size={24} color={COLORS.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerLeft}>
+          <View style={styles.aiAvatar}><Ionicons name="sparkles" size={24} color={COLORS.primary} /></View>
+          <View>
+            <Text style={styles.headerTitle}>FELLO</Text>
+            <Text style={styles.headerSub}>AI Sales Copilot</Text>
+          </View>
+        </View>
       </View>
 
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={COLORS.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Chats durchsuchen..."
-          placeholderTextColor={COLORS.textMuted}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      {/* Platform Filter */}
       <FlatList
-        horizontal
-        data={PLATFORMS}
-        contentContainerStyle={styles.platformList}
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={item => item}
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.messageList}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.platformChip, activePlatform === item && styles.activePlatformChip]}
-            onPress={() => {
-              Haptics.selectionAsync();
-              setActivePlatform(item);
-            }}
-          >
-            <Text style={[styles.platformText, activePlatform === item && styles.activePlatformText]}>
-              {item}
-            </Text>
-          </TouchableOpacity>
+          <View style={[styles.msgRow, item.sender === 'user' ? styles.userRow : styles.aiRow]}>
+            {item.sender === 'ai' && <View style={styles.aiIcon}><Ionicons name="sparkles" size={16} color={COLORS.primary} /></View>}
+            <View style={[styles.bubble, item.sender === 'user' ? styles.userBubble : styles.aiBubble]}>
+              <Text style={styles.msgText}>{item.text}</Text>
+            </View>
+          </View>
         )}
       />
 
-      {/* Chat List */}
-      <FlatList
-        data={filteredChats}
-        renderItem={renderChat}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.chatList}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="chatbubbles-outline" size={64} color={COLORS.border} />
-            <Text style={styles.emptyText}>Keine Chats gefunden</Text>
-          </View>
-        }
-      />
+      {loading && (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+          <Text style={styles.loadingText}>FELLO denkt nach...</Text>
+        </View>
+      )}
 
-      {/* Import FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          // TODO: Chat Import
-        }}
-      >
-        <Ionicons name="add" size={28} color={COLORS.background} />
-      </TouchableOpacity>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Frag FELLO etwas..."
+            placeholderTextColor={COLORS.textMuted}
+            value={input}
+            onChangeText={setInput}
+            multiline
+            onSubmitEditing={sendMessage}
+          />
+          <TouchableOpacity style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]} onPress={sendMessage} disabled={!input.trim() || loading}>
+            <Ionicons name="send" size={20} color={input.trim() ? COLORS.primary : COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, marginBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text },
-  syncBtn: { padding: 8 },
-  searchContainer: { marginHorizontal: 20, marginBottom: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 12, paddingHorizontal: 12, height: 44 },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 16, marginLeft: 8 },
-  platformList: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
-  platformChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: COLORS.surface },
-  activePlatformChip: { backgroundColor: COLORS.card, borderColor: COLORS.primary, borderWidth: 1 },
-  platformText: { color: COLORS.textSecondary, fontWeight: '600' },
-  activePlatformText: { color: COLORS.primary },
-  chatList: { paddingHorizontal: 20, paddingBottom: 100 },
-  chatCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, padding: 16, borderRadius: 16, marginBottom: 12 },
-  avatarContainer: { position: 'relative', marginRight: 16 },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: COLORS.card, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: COLORS.text, fontSize: 20, fontWeight: '700' },
-  platformBadge: { position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.surface },
-  chatContent: { flex: 1 },
-  chatHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  chatName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  chatTime: { fontSize: 12, color: COLORS.textMuted },
-  chatFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  chatMessage: { flex: 1, fontSize: 14, color: COLORS.textSecondary },
-  unreadBadge: { backgroundColor: COLORS.primary, borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6, marginLeft: 8 },
-  unreadText: { color: COLORS.background, fontSize: 12, fontWeight: '700' },
-  emptyState: { alignItems: 'center', paddingTop: 80 },
-  emptyText: { color: COLORS.textMuted, fontSize: 16, marginTop: 16 },
-  fab: { position: 'absolute', bottom: 100, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  aiAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.primary },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  headerSub: { fontSize: 12, color: COLORS.textSecondary },
+  messageList: { padding: 16, paddingBottom: 100 },
+  msgRow: { flexDirection: 'row', marginBottom: 12, maxWidth: '85%' },
+  userRow: { alignSelf: 'flex-end' },
+  aiRow: { alignSelf: 'flex-start', alignItems: 'flex-start' },
+  aiIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', marginRight: 8, marginTop: 4 },
+  bubble: { padding: 12, borderRadius: 16 },
+  userBubble: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
+  aiBubble: { backgroundColor: COLORS.surface, borderBottomLeftRadius: 4 },
+  msgText: { fontSize: 15, lineHeight: 22, color: COLORS.text },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, gap: 8 },
+  loadingText: { color: COLORS.textSecondary, fontSize: 13 },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.surface },
+  input: { flex: 1, backgroundColor: COLORS.background, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, color: COLORS.text, maxHeight: 100, borderWidth: 1, borderColor: COLORS.border },
+  sendBtn: { padding: 10, marginLeft: 8 },
+  sendBtnDisabled: { opacity: 0.5 },
 });

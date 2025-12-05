@@ -44,7 +44,7 @@ export default function ScreenshotImportScreen({ navigation }: any) {
         lead: {
           id: Date.now().toString(),
           name: extractedData.name,
-          status: extractedData.status.toUpperCase(),
+          status: (extractedData.status || 'NEW').toUpperCase(),
           lastMsg: extractedData.lastMessage,
           temperature: extractedData.temperature,
           tags: extractedData.tags,
