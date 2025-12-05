@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, StatusBar, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -18,13 +18,23 @@ const STATS = [
   { label: 'Scripts', value: '47', trend: '', icon: 'document-text' },
 ];
 
-const PENDING_TASKS = [
-  { id: '1', lead: 'Lisa Müller', action: 'Follow-up senden', time: '2 Tage überfällig', urgent: true },
-  { id: '2', lead: 'Markus Weber', action: 'Link schicken', time: 'Heute', urgent: false },
-  { id: '3', lead: 'Sarah K.', action: 'Preis erklären', time: 'Morgen', urgent: false },
-];
-
 export default function HomeScreen({ navigation }: any) {
+  const [pendingLeads, setPendingLeads] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchPendingLeads();
+  }, []);
+
+  const fetchPendingLeads = async () => {
+    try {
+      const response = await fetch('https://salesflow-ai.onrender.com/api/leads/pending');
+      const data = await response.json();
+      setPendingLeads(data.leads || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleQuickAction = async (action: any) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (action.screen) {
@@ -77,26 +87,35 @@ export default function HomeScreen({ navigation }: any) {
         </View>
 
         {/* Pending Tasks */}
-        <Text style={styles.sectionTitle}>Anstehende Aufgaben</Text>
-        {PENDING_TASKS.map((task) => (
-          <TouchableOpacity
-            key={task.id}
-            style={styles.taskCard}
-            onPress={() => {
-              Haptics.selectionAsync();
-              navigation.navigate('LeadDetailScreen', { leadId: task.id });
-            }}
-          >
-            <View style={styles.taskLeft}>
-              <Text style={styles.taskLead}>{task.lead}</Text>
-              <Text style={styles.taskAction}>{task.action}</Text>
-            </View>
-            <View style={styles.taskRight}>
-              <Text style={[styles.taskTime, task.urgent && styles.urgentTime]}>{task.time}</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
-            </View>
-          </TouchableOpacity>
-        ))}
+        <Text style={styles.sectionTitle}>Anstehende Aufgaben {pendingLeads.length > 0 && `(${pendingLeads.length})`}</Text>
+        {pendingLeads.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="checkmark-circle" size={32} color={COLORS.success} />
+            <Text style={styles.emptyText}>Keine fälligen Follow-ups!</Text>
+          </View>
+        ) : (
+          pendingLeads.map((lead) => (
+            <TouchableOpacity
+              key={lead.id}
+              style={styles.taskCard}
+              onPress={() => {
+                Haptics.selectionAsync();
+                navigation.navigate('LeadDetailScreen', { lead });
+              }}
+            >
+              <View style={styles.taskLeft}>
+                <Text style={styles.taskLead}>{lead.name}</Text>
+                <Text style={styles.taskAction}>{lead.follow_up_reason || 'Follow-up fällig'}</Text>
+              </View>
+              <View style={styles.taskRight}>
+                <Text style={[styles.taskTime, lead.next_follow_up <= new Date().toISOString().split('T')[0] && styles.urgentTime]}>
+                  {lead.next_follow_up <= new Date().toISOString().split('T')[0] ? 'Heute fällig' : lead.next_follow_up}
+                </Text>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.textMuted} />
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
 
         {/* AI Tip Card */}
         <View style={styles.tipCard}>
@@ -147,6 +166,8 @@ const styles = StyleSheet.create({
   taskRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   taskTime: { fontSize: 12, color: COLORS.textMuted },
   urgentTime: { color: COLORS.error, fontWeight: '700' },
+  emptyState: { alignItems: 'center', padding: 24, backgroundColor: COLORS.surface, borderRadius: 12, marginBottom: 12 },
+  emptyText: { color: COLORS.textSecondary, marginTop: 8 },
   tipCard: { backgroundColor: '#1a1708', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#3d3510', marginTop: 8 },
   tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   tipTitle: { fontSize: 16, fontWeight: '700', color: COLORS.warning },

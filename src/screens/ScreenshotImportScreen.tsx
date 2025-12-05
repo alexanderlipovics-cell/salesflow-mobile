@@ -40,16 +40,14 @@ export default function ScreenshotImportScreen({ navigation }: any) {
 
   const createLead = () => {
     if (extractedData) {
-      navigation.navigate('LeadDetailScreen', { 
-        lead: {
-          id: Date.now().toString(),
+      navigation.navigate('CreateLead', { 
+        importedData: {
           name: extractedData.name,
-          status: (extractedData.status || 'NEW').toUpperCase(),
-          lastMsg: extractedData.lastMessage,
+          platform: extractedData.platform,
+          status: extractedData.status,
+          lastMessage: extractedData.lastMessage,
           temperature: extractedData.temperature,
           tags: extractedData.tags,
-          unread: true,
-          time: 'Jetzt'
         }
       });
     }

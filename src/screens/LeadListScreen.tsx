@@ -42,7 +42,7 @@ export default function LeadListScreen({ navigation }: any) {
           <TouchableOpacity style={styles.scanBtn} onPress={() => navigation.navigate('ScreenshotImport')}>
             <Ionicons name="scan" size={22} color={COLORS.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addBtn}><Ionicons name="add" size={24} color={COLORS.background} /></TouchableOpacity>
+          <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('CreateLead')}><Ionicons name="add" size={24} color={COLORS.background} /></TouchableOpacity>
         </View>
       </View>
       <View style={styles.searchContainer}>
