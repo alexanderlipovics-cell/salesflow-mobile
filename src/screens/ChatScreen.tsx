@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { API_CONFIG } from '../constants/api';
+import { generateCopilotResponse, testBackendConnection } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/colors';
 
 interface Message {
@@ -23,6 +23,11 @@ interface Message {
   content: string;
   timestamp: Date;
   isError?: boolean;
+  options?: {
+    soft?: string;
+    direct?: string;
+    question?: string;
+  };
 }
 
 const QUICK_PROMPTS = [
@@ -44,8 +49,20 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [showQuickPrompts, setShowQuickPrompts] = useState(true);
+  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const typingAnimation = useRef(new Animated.Value(0)).current;
+
+  // Check Backend Status beim Start
+  useEffect(() => {
+    checkBackendStatus();
+  }, []);
+
+  const checkBackendStatus = async () => {
+    const isOnline = await testBackendConnection();
+    setBackendOnline(isOnline);
+    console.log('Backend Status:', isOnline ? '✅ Online' : '❌ Offline');
+  };
 
   useEffect(() => {
     if (loading) {
@@ -87,33 +104,29 @@ export default function ChatScreen() {
     setShowQuickPrompts(false);
 
     try {
-      // Versuche Backend-API
-      const response = await fetch(`${API_CONFIG.BACKEND_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          message: messageText,
-          context: 'mlm_sales',
-          history: messages.slice(-5).map(m => ({
-            role: m.role,
-            content: m.content
-          })),
-        }),
+      // Versuche echte API
+      const response = await generateCopilotResponse(messageText, {
+        previousMessages: messages.slice(-5).map(m => ({
+          role: m.role,
+          content: m.content
+        })),
+        vertical: 'mlm_sales',
       });
 
       let assistantContent = '';
+      let options = undefined;
 
-      if (response.ok) {
-        const data = await response.json();
-        assistantContent = data.response || data.message || data.answer || data.content || '';
-      } else {
-        // Fallback: Generiere lokale Antwort
-        assistantContent = generateFallbackResponse(messageText);
+      // Parse API Response
+      if (response) {
+        assistantContent = response.response || response.message || response.answer || response.content || '';
+        
+        // Wenn Optionen vorhanden (Soft, Direct, Question)
+        if (response.options) {
+          options = response.options;
+        }
       }
 
+      // Fallback wenn API keine Antwort liefert
       if (!assistantContent) {
         assistantContent = generateFallbackResponse(messageText);
       }
@@ -123,13 +136,16 @@ export default function ChatScreen() {
         role: 'assistant',
         content: assistantContent,
         timestamp: new Date(),
+        options,
       };
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setMessages(prev => [...prev, assistantMessage]);
+      setBackendOnline(true);
 
     } catch (error) {
       console.error('Chat error:', error);
+      setBackendOnline(false);
       
       // Generiere Fallback-Antwort bei Fehler
       const fallbackResponse = generateFallbackResponse(messageText);
@@ -139,7 +155,7 @@ export default function ChatScreen() {
         role: 'assistant',
         content: fallbackResponse,
         timestamp: new Date(),
-        isError: !fallbackResponse,
+        isError: false, // Kein Error-Styling, da wir gute Fallback-Antworten haben
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -278,25 +294,80 @@ Frag mich gerne spezifischer zu:
     sendMessage(prompt);
   };
 
+  const copyOption = async (text: string) => {
+    // Hier könnte man expo-clipboard nutzen
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // TODO: Clipboard.setStringAsync(text);
+  };
+
   const renderMessage = ({ item }: { item: Message }) => (
-    <View style={[
-      styles.messageBubble,
-      item.role === 'user' ? styles.userBubble : styles.assistantBubble,
-      item.isError && styles.errorBubble,
-    ]}>
-      {item.role === 'assistant' && (
-        <View style={styles.avatarContainer}>
-          <Ionicons name="sparkles" size={16} color={COLORS.primary} />
+    <View>
+      <View style={[
+        styles.messageBubble,
+        item.role === 'user' ? styles.userBubble : styles.assistantBubble,
+        item.isError && styles.errorBubble,
+      ]}>
+        {item.role === 'assistant' && (
+          <View style={styles.avatarContainer}>
+            <Ionicons name="sparkles" size={16} color={COLORS.primary} />
+          </View>
+        )}
+        <Text style={[
+          styles.messageText,
+          item.role === 'user' && styles.userMessageText,
+        ]}>
+          {item.content}
+        </Text>
+      </View>
+
+      {/* Response Options (Soft, Direct, Question) */}
+      {item.options && (
+        <View style={styles.optionsContainer}>
+          {item.options.soft && (
+            <TouchableOpacity 
+              style={[styles.optionButton, styles.optionSoft]}
+              onPress={() => copyOption(item.options!.soft!)}
+            >
+              <Ionicons name="heart-outline" size={16} color="#10b981" />
+              <Text style={styles.optionLabel}>Soft</Text>
+              <Text style={styles.optionText} numberOfLines={2}>{item.options.soft}</Text>
+            </TouchableOpacity>
+          )}
+          {item.options.direct && (
+            <TouchableOpacity 
+              style={[styles.optionButton, styles.optionDirect]}
+              onPress={() => copyOption(item.options!.direct!)}
+            >
+              <Ionicons name="flash-outline" size={16} color="#f59e0b" />
+              <Text style={styles.optionLabel}>Direkt</Text>
+              <Text style={styles.optionText} numberOfLines={2}>{item.options.direct}</Text>
+            </TouchableOpacity>
+          )}
+          {item.options.question && (
+            <TouchableOpacity 
+              style={[styles.optionButton, styles.optionQuestion]}
+              onPress={() => copyOption(item.options!.question!)}
+            >
+              <Ionicons name="help-circle-outline" size={16} color="#8b5cf6" />
+              <Text style={styles.optionLabel}>Frage</Text>
+              <Text style={styles.optionText} numberOfLines={2}>{item.options.question}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
-      <Text style={[
-        styles.messageText,
-        item.role === 'user' && styles.userMessageText,
-      ]}>
-        {item.content}
-      </Text>
     </View>
   );
+
+  const getStatusColor = () => {
+    if (backendOnline === null) return COLORS.warning;
+    return backendOnline ? COLORS.success : COLORS.error;
+  };
+
+  const getStatusText = () => {
+    if (loading) return 'Schreibt...';
+    if (backendOnline === null) return 'Prüfe...';
+    return backendOnline ? 'Online' : 'Offline (Fallback)';
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -308,26 +379,47 @@ Frag mich gerne spezifischer zu:
           </View>
           <View>
             <Text style={styles.title}>KI Sales Coach</Text>
-            <Text style={styles.statusText}>
-              {loading ? 'Schreibt...' : 'Online'}
-            </Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
+              <Text style={[styles.statusText, { color: getStatusColor() }]}>
+                {getStatusText()}
+              </Text>
+            </View>
           </View>
         </View>
-        <TouchableOpacity 
-          style={styles.clearButton}
-          onPress={() => {
-            setMessages([{
-              id: Date.now().toString(),
-              role: 'assistant',
-              content: 'Chat wurde zurückgesetzt. Wie kann ich dir helfen?',
-              timestamp: new Date(),
-            }]);
-            setShowQuickPrompts(true);
-          }}
-        >
-          <Ionicons name="refresh-outline" size={22} color={COLORS.textMuted} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={checkBackendStatus}
+          >
+            <Ionicons name="wifi-outline" size={20} color={COLORS.textMuted} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.clearButton}
+            onPress={() => {
+              setMessages([{
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: 'Chat wurde zurückgesetzt. Wie kann ich dir helfen?',
+                timestamp: new Date(),
+              }]);
+              setShowQuickPrompts(true);
+            }}
+          >
+            <Ionicons name="refresh-outline" size={22} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Backend Status Banner (wenn offline) */}
+      {backendOnline === false && (
+        <View style={styles.offlineBanner}>
+          <Ionicons name="cloud-offline-outline" size={16} color="#f59e0b" />
+          <Text style={styles.offlineBannerText}>
+            Backend nicht erreichbar - Lokale Antworten aktiv
+          </Text>
+        </View>
+      )}
 
       {/* Messages */}
       <FlatList
@@ -422,6 +514,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
   headerIcon: {
     width: 40,
     height: 40,
@@ -436,12 +533,37 @@ const styles = StyleSheet.create({
     fontWeight: 'bold', 
     color: COLORS.text,
   },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
   statusText: {
     fontSize: 12,
-    color: COLORS.success,
+  },
+  refreshButton: {
+    padding: SPACING.sm,
   },
   clearButton: {
     padding: SPACING.sm,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    backgroundColor: '#f59e0b20',
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+  },
+  offlineBannerText: {
+    color: '#f59e0b',
+    fontSize: 12,
   },
   messagesList: { 
     padding: SPACING.lg,
@@ -488,6 +610,37 @@ const styles = StyleSheet.create({
   },
   userMessageText: {
     color: '#ffffff',
+  },
+  optionsContainer: {
+    marginLeft: SPACING.md,
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  optionButton: {
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderLeftWidth: 3,
+  },
+  optionSoft: {
+    borderLeftColor: '#10b981',
+  },
+  optionDirect: {
+    borderLeftColor: '#f59e0b',
+  },
+  optionQuestion: {
+    borderLeftColor: '#8b5cf6',
+  },
+  optionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+    marginBottom: 4,
+  },
+  optionText: {
+    fontSize: 14,
+    color: COLORS.text,
+    lineHeight: 20,
   },
   typingIndicator: {
     flexDirection: 'row',
