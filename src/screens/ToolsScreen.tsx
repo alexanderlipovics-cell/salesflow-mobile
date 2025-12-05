@@ -10,14 +10,25 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/colors';
 
-const tools = [
+// Tool-Typ mit optionalem Chat-Preset
+interface Tool {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  screen: string;
+  chatPreset?: 'cold_call' | 'closing' | 'followup' | 'autopilot';
+}
+
+const tools: Tool[] = [
   {
     id: 'objection',
     title: 'Einwandbehandlung',
     description: 'KI-gestützte Antworten auf Einwände',
     icon: 'shield-checkmark',
     color: COLORS.warning,
-    screen: 'ObjectionHandler',
+    screen: 'ObjectionHandler', // Bleibt separater Screen
   },
   {
     id: 'followup',
@@ -25,7 +36,8 @@ const tools = [
     description: 'Automatische Nachfass-Nachrichten',
     icon: 'refresh',
     color: COLORS.secondary,
-    screen: 'FollowUp',
+    screen: 'Chat', // Jetzt zum Chat mit Preset
+    chatPreset: 'followup',
   },
   {
     id: 'coldcall',
@@ -33,7 +45,8 @@ const tools = [
     description: 'Gesprächsleitfäden für Kaltakquise',
     icon: 'call',
     color: COLORS.primary,
-    screen: 'ColdCall',
+    screen: 'Chat', // Jetzt zum Chat mit Preset
+    chatPreset: 'cold_call',
   },
   {
     id: 'closing',
@@ -41,7 +54,8 @@ const tools = [
     description: 'Abschluss-Techniken und Formulierungen',
     icon: 'checkmark-done',
     color: COLORS.success,
-    screen: 'Closing',
+    screen: 'Chat', // Jetzt zum Chat mit Preset
+    chatPreset: 'closing',
   },
   {
     id: 'autopilot',
@@ -49,7 +63,8 @@ const tools = [
     description: 'Automatisierte Vertriebsaktionen',
     icon: 'rocket',
     color: '#f97316',
-    screen: 'Autopilot',
+    screen: 'Chat', // Jetzt zum Chat mit Preset
+    chatPreset: 'autopilot',
   },
 ];
 
@@ -70,7 +85,14 @@ export default function ToolsScreen({ navigation }: any) {
             <TouchableOpacity
               key={tool.id}
               style={styles.toolCard}
-              onPress={() => navigation.navigate(tool.screen)}
+              onPress={() => {
+                // Navigation mit oder ohne Preset-Parameter
+                if (tool.chatPreset) {
+                  navigation.navigate(tool.screen, { preset: tool.chatPreset });
+                } else {
+                  navigation.navigate(tool.screen);
+                }
+              }}
               activeOpacity={0.7}
             >
               <View style={[styles.iconContainer, { backgroundColor: tool.color + '20' }]}>
