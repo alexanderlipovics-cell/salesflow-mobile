@@ -1,147 +1,230 @@
-import React, { useState, useRef } from 'react';
-import { 
-  View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, 
-  SafeAreaView, KeyboardAvoidingView, Platform, Dimensions, StatusBar
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, Linking, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../theme';
 
-const { width } = Dimensions.get('window');
+const STATUS_COLORS: Record<string, string> = {
+  NEW: '#06b6d4',
+  INTERESTED: '#10b981',
+  SKEPTICAL: '#f59e0b',
+  CONVERSATION: '#3b82f6',
+  CLOSING: '#8b5cf6',
+  GHOSTING: '#ef4444',
+};
 
-interface Message {
-  id: string;
-  text: string;
-  sender: 'user' | 'lead';
-  timestamp: string;
-}
-
-const CHAT_HISTORY: Message[] = [
-  { id: '1', text: 'Hey, danke für dein Interesse an der Challenge!', sender: 'user', timestamp: 'Mo. 10:00' },
-  { id: '2', text: 'Hi! Ja klingt spannend, aber ich bin mir unsicher wegen dem Preis...', sender: 'lead', timestamp: 'Mo. 11:30' },
-  { id: '3', text: 'Verstehe ich total. Aber denk dran: Es ist eine Investition in dich selbst. 💪', sender: 'user', timestamp: 'Mo. 11:35' },
-];
+const PLATFORM_LINKS: Record<string, (name: string, msg: string) => string> = {
+  WhatsApp: (name, msg) => `whatsapp://send?text=${encodeURIComponent(msg)}`,
+  Instagram: (name, msg) => `instagram://direct`, // IG öffnen, User muss Text pasten
+  Facebook: (name, msg) => `fb-messenger://`,
+  LinkedIn: (name, msg) => `linkedin://messaging`,
+  Email: (name, msg) => `mailto:?body=${encodeURIComponent(msg)}`,
+};
 
 export default function LeadDetailScreen({ route, navigation }: any) {
-  // Lead-Daten aus route.params
-  const lead = route.params?.lead || {
-    id: '1',
-    name: 'Unbekannt',
-    status: 'NEW',
-    tags: [],
-    temperature: 0,
-    lastMsg: '',
-  };
-  const [messages, setMessages] = useState<Message[]>(CHAT_HISTORY);
-  const [inputText, setInputText] = useState('');
-  const flatListRef = useRef<FlatList>(null);
+  const lead = route.params?.lead || { id: '1', name: 'Unbekannt', status: 'NEW', platform: 'WhatsApp' };
+  
+  const [generatedMessage, setGeneratedMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
-    setMessages(prev => [...prev, { id: Date.now().toString(), text: inputText, sender: 'user', timestamp: 'Gerade' }]);
-    setInputText('');
-    setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
+  const generateMessage = async () => {
+    setLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    try {
+      const response = await fetch('https://salesflow-ai.onrender.com/api/copilot/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: lead.lastMsg || lead.last_message || 'Noch keine Nachricht',
+          context: {
+            lead_name: lead.name,
+            status: lead.status,
+            temperature: lead.temperature || 50
+          }
+        })
+      });
+      
+      const data = await response.json();
+      if (data.options && data.options.length > 0) {
+        setGeneratedMessage(data.options[0].content);
+      } else if (data.response) {
+        setGeneratedMessage(data.response);
+      } else {
+        setGeneratedMessage('Hey! Ich wollte mich kurz melden - hast du noch Fragen zu unserem Gespräch? 😊');
+      }
+    } catch (e) {
+      Alert.alert('Fehler', 'Nachricht konnte nicht generiert werden');
+    }
+    setLoading(false);
   };
 
-  const triggerMagicMoment = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate('MagicScriptScreen', { leadName: lead.name, lastMessage: lead.lastMsg || '', type: lead.status?.toLowerCase() || 'new' });
+  const copyAndOpen = async (platform: string) => {
+    if (!generatedMessage) return;
+    
+    await Clipboard.setStringAsync(generatedMessage);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    const linkFn = PLATFORM_LINKS[platform];
+    if (linkFn) {
+      const url = linkFn(lead.name, generatedMessage);
+      const canOpen = await Linking.canOpenURL(url);
+      
+      if (canOpen) {
+        Alert.alert('Kopiert! ✓', `Nachricht wurde kopiert. ${platform} wird geöffnet.`, [
+          { text: 'Öffnen', onPress: () => Linking.openURL(url) }
+        ]);
+      } else {
+        Alert.alert('Kopiert! ✓', `Nachricht wurde in die Zwischenablage kopiert. Öffne ${platform} manuell.`);
+      }
+    }
+  };
+
+  const updateStatus = () => {
+    navigation.navigate('CreateLead', { importedData: { ...lead, name: lead.name } });
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-          <View style={styles.profileInfo}>
-            <Text style={styles.leadName}>{lead.name}</Text>
-            <View style={styles.statusBadge}>
-              <View style={[styles.statusDot, { backgroundColor: COLORS.error }]} />
-              <Text style={styles.statusText}>{lead.status}</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.menuBtn}>
-            <Ionicons name="ellipsis-horizontal" size={24} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.metaRow}>
-          <View style={styles.tagsContainer}>
-            {(lead.tags || []).map((tag: string) => (
-              <View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>
-            ))}
-          </View>
-          <View style={styles.tempContainer}>
-            <Ionicons name="thermometer" size={16} color={(lead.temperature || 0) > 50 ? COLORS.warning : COLORS.textMuted} />
-            <Text style={styles.tempText}>{lead.temperature || 0}%</Text>
-          </View>
-        </View>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{lead.name}</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('CreateLead', { importedData: lead })}>
+          <Ionicons name="create-outline" size={24} color={COLORS.text} />
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.chatList}
-        renderItem={({ item }) => (
-          <View style={[styles.bubbleWrapper, item.sender === 'user' ? styles.userWrapper : styles.leadWrapper]}>
-            <View style={[styles.bubble, item.sender === 'user' ? styles.userBubble : styles.leadBubble]}>
-              <Text style={[styles.msgText, item.sender === 'user' ? styles.userText : styles.leadText]}>{item.text}</Text>
+      <ScrollView style={styles.content}>
+        {/* Lead Info Card */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Status</Text>
+            <View style={[styles.statusBadge, { backgroundColor: (STATUS_COLORS[lead.status] || COLORS.primary) + '20', borderColor: STATUS_COLORS[lead.status] || COLORS.primary }]}>
+              <Text style={[styles.statusText, { color: STATUS_COLORS[lead.status] || COLORS.primary }]}>{lead.status}</Text>
             </View>
-            <Text style={styles.timestamp}>{item.timestamp}</Text>
           </View>
-        )}
-      />
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Plattform</Text>
+            <Text style={styles.infoValue}>{lead.platform || 'WhatsApp'}</Text>
+          </View>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Temperatur</Text>
+            <Text style={styles.infoValue}>{lead.temperature || 50}% 🔥</Text>
+          </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.inputWrapper}>
-        <View style={styles.toolbar}>
-          <TouchableOpacity style={styles.magicBtn} onPress={triggerMagicMoment}>
-            <Ionicons name="sparkles" size={20} color={COLORS.text} />
+          {(lead.lastMsg || lead.last_message) && (
+            <View style={styles.lastMsgBox}>
+              <Text style={styles.infoLabel}>Letzte Nachricht</Text>
+              <Text style={styles.lastMsg}>"{lead.lastMsg || lead.last_message}"</Text>
+            </View>
+          )}
+
+          {lead.next_follow_up && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Follow-up</Text>
+              <Text style={styles.infoValue}>{lead.next_follow_up}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* AI Generate Section */}
+        <View style={styles.aiSection}>
+          <Text style={styles.sectionTitle}>✨ AI Nachricht generieren</Text>
+          
+          <TouchableOpacity style={styles.generateBtn} onPress={generateMessage} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <>
+                <Ionicons name="sparkles" size={20} color="#000" />
+                <Text style={styles.generateBtnText}>Nachricht generieren</Text>
+              </>
+            )}
           </TouchableOpacity>
-          <TextInput style={styles.input} placeholder="Nachricht schreiben..." placeholderTextColor={COLORS.textMuted} value={inputText} onChangeText={setInputText} multiline />
-          <TouchableOpacity style={[styles.sendBtn, !inputText && styles.sendBtnDisabled]} onPress={sendMessage} disabled={!inputText}>
-            <Ionicons name="send" size={20} color={inputText ? COLORS.primary : COLORS.textMuted} />
+
+          {generatedMessage && (
+            <View style={styles.messageBox}>
+              <Text style={styles.messageText}>{generatedMessage}</Text>
+              
+              <Text style={styles.sendViaLabel}>Senden via:</Text>
+              <View style={styles.platformRow}>
+                <TouchableOpacity style={[styles.platformBtn, { backgroundColor: '#25D366' }]} onPress={() => copyAndOpen('WhatsApp')}>
+                  <Ionicons name="logo-whatsapp" size={20} color="#fff" />
+                  <Text style={styles.platformBtnText}>WhatsApp</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={[styles.platformBtn, { backgroundColor: '#E4405F' }]} onPress={() => copyAndOpen('Instagram')}>
+                  <Ionicons name="logo-instagram" size={20} color="#fff" />
+                  <Text style={styles.platformBtnText}>Instagram</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={[styles.platformBtn, { backgroundColor: '#0A66C2' }]} onPress={() => copyAndOpen('LinkedIn')}>
+                  <Ionicons name="logo-linkedin" size={20} color="#fff" />
+                  <Text style={styles.platformBtnText}>LinkedIn</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.copyOnlyBtn} onPress={() => { Clipboard.setStringAsync(generatedMessage); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); Alert.alert('Kopiert!'); }}>
+                <Ionicons name="copy-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.copyOnlyText}>Nur kopieren</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          
+          <TouchableOpacity style={styles.actionBtn} onPress={updateStatus}>
+            <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.primary} />
+            <Text style={styles.actionText}>Status aktualisieren</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('CreateLead', { importedData: lead })}>
+            <Ionicons name="calendar-outline" size={22} color={COLORS.primary} />
+            <Text style={styles.actionText}>Follow-up planen</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  header: { padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  backBtn: { padding: 8, marginLeft: -8 },
-  menuBtn: { padding: 8, marginRight: -8 },
-  profileInfo: { alignItems: 'center' },
-  leadName: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', marginTop: 4, backgroundColor: COLORS.card, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
-  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-  statusText: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, letterSpacing: 0.5 },
-  metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  tagsContainer: { flexDirection: 'row', gap: 8 },
-  tag: { backgroundColor: COLORS.surface, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: COLORS.border },
-  tagText: { fontSize: 11, color: COLORS.textSecondary },
-  tempContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tempText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
-  chatList: { padding: 16, paddingBottom: 32 },
-  bubbleWrapper: { marginBottom: 16, maxWidth: '80%' },
-  userWrapper: { alignSelf: 'flex-end', alignItems: 'flex-end' },
-  leadWrapper: { alignSelf: 'flex-start', alignItems: 'flex-start' },
-  bubble: { padding: 12, borderRadius: 16 },
-  userBubble: { backgroundColor: COLORS.primary, borderBottomRightRadius: 2 },
-  leadBubble: { backgroundColor: COLORS.card, borderBottomLeftRadius: 2 },
-  msgText: { fontSize: 15, lineHeight: 22 },
-  userText: { color: COLORS.text },
-  leadText: { color: COLORS.text },
-  timestamp: { fontSize: 10, color: COLORS.textMuted, marginTop: 4, marginHorizontal: 4 },
-  inputWrapper: { backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
-  toolbar: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, gap: 10 },
-  magicBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.secondary, justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
-  input: { flex: 1, backgroundColor: COLORS.background, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, maxHeight: 100, fontSize: 16 },
-  sendBtn: { padding: 10, marginBottom: 2 },
-  sendBtnDisabled: { opacity: 0.5 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  content: { flex: 1, padding: 16 },
+  infoCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, marginBottom: 20 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  infoLabel: { fontSize: 14, color: COLORS.textSecondary },
+  infoValue: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  statusText: { fontSize: 12, fontWeight: '700' },
+  lastMsgBox: { paddingTop: 12 },
+  lastMsg: { fontSize: 14, color: COLORS.text, fontStyle: 'italic', marginTop: 6 },
+  aiSection: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, marginBottom: 20 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
+  generateBtn: { backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 12, gap: 8 },
+  generateBtnText: { fontSize: 16, fontWeight: '700', color: '#000' },
+  messageBox: { marginTop: 16, padding: 16, backgroundColor: COLORS.background, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
+  messageText: { fontSize: 15, color: COLORS.text, lineHeight: 22, marginBottom: 16 },
+  sendViaLabel: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 8 },
+  platformRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  platformBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 10, gap: 6 },
+  platformBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  copyOnlyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 10, gap: 6 },
+  copyOnlyText: { color: COLORS.primary, fontWeight: '600' },
+  actionsSection: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 12 },
+  actionText: { flex: 1, fontSize: 15, color: COLORS.text },
 });
