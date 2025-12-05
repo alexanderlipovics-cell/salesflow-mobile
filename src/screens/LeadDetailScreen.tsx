@@ -16,21 +16,22 @@ interface Message {
   timestamp: string;
 }
 
-const LEAD_DATA = {
-  id: '1',
-  name: 'Lisa Müller',
-  status: 'GHOSTING',
-  tags: ['Herbalife', 'Skeptisch', 'Mama'],
-  temperature: 65,
-};
-
 const CHAT_HISTORY: Message[] = [
-  { id: '1', text: 'Hey Lisa, danke für dein Interesse an der Challenge!', sender: 'user', timestamp: 'Mo. 10:00' },
+  { id: '1', text: 'Hey, danke für dein Interesse an der Challenge!', sender: 'user', timestamp: 'Mo. 10:00' },
   { id: '2', text: 'Hi! Ja klingt spannend, aber ich bin mir unsicher wegen dem Preis...', sender: 'lead', timestamp: 'Mo. 11:30' },
   { id: '3', text: 'Verstehe ich total. Aber denk dran: Es ist eine Investition in dich selbst. 💪', sender: 'user', timestamp: 'Mo. 11:35' },
 ];
 
-export default function LeadDetailScreen({ navigation }: any) {
+export default function LeadDetailScreen({ route, navigation }: any) {
+  // Lead-Daten aus route.params
+  const lead = route.params?.lead || {
+    id: '1',
+    name: 'Unbekannt',
+    status: 'NEW',
+    tags: [],
+    temperature: 0,
+    lastMsg: '',
+  };
   const [messages, setMessages] = useState<Message[]>(CHAT_HISTORY);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
@@ -44,7 +45,7 @@ export default function LeadDetailScreen({ navigation }: any) {
 
   const triggerMagicMoment = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    navigation.navigate('MagicScriptScreen', { leadName: LEAD_DATA.name, type: 'ghosting' });
+    navigation.navigate('MagicScriptScreen', { leadName: lead.name, lastMessage: lead.lastMsg || '', type: lead.status?.toLowerCase() || 'new' });
   };
 
   return (
@@ -56,10 +57,10 @@ export default function LeadDetailScreen({ navigation }: any) {
             <Ionicons name="arrow-back" size={24} color={COLORS.textSecondary} />
           </TouchableOpacity>
           <View style={styles.profileInfo}>
-            <Text style={styles.leadName}>{LEAD_DATA.name}</Text>
+            <Text style={styles.leadName}>{lead.name}</Text>
             <View style={styles.statusBadge}>
               <View style={[styles.statusDot, { backgroundColor: COLORS.error }]} />
-              <Text style={styles.statusText}>{LEAD_DATA.status}</Text>
+              <Text style={styles.statusText}>{lead.status}</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.menuBtn}>
@@ -68,13 +69,13 @@ export default function LeadDetailScreen({ navigation }: any) {
         </View>
         <View style={styles.metaRow}>
           <View style={styles.tagsContainer}>
-            {LEAD_DATA.tags.map(tag => (
+            {(lead.tags || []).map((tag: string) => (
               <View key={tag} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text></View>
             ))}
           </View>
           <View style={styles.tempContainer}>
-            <Ionicons name="thermometer" size={16} color={LEAD_DATA.temperature > 50 ? COLORS.warning : COLORS.textMuted} />
-            <Text style={styles.tempText}>{LEAD_DATA.temperature}%</Text>
+            <Ionicons name="thermometer" size={16} color={(lead.temperature || 0) > 50 ? COLORS.warning : COLORS.textMuted} />
+            <Text style={styles.tempText}>{lead.temperature || 0}%</Text>
           </View>
         </View>
       </View>

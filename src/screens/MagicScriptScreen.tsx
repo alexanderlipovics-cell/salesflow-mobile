@@ -8,32 +8,77 @@ import { COLORS } from '../theme';
 interface ScriptOption {
   id: string;
   label: string;
-  tone: 'EMPATHIC' | 'DIRECT' | 'CREATIVE';
+  tone: 'EMPATHIC' | 'DIRECT' | 'INQUISITIVE' | 'CREATIVE';
   content: string;
   tags: string[];
 }
 
-const generateMockOptions = (leadName: string): ScriptOption[] => [
-  { id: 'opt_A', label: 'Verständnisvoll', tone: 'EMPATHIC', content: `Hey ${leadName}, ich verstehe total, dass du gerade viel um die Ohren hast. 🙏 Sollen wir nächste Woche nochmal quatschen?`, tags: ['soft'] },
-  { id: 'opt_B', label: 'Direkt', tone: 'DIRECT', content: `Lass uns ehrlich sein ${leadName}: Wenn sich nichts ändert, ändert sich nichts. Lass uns starten.`, tags: ['action'] },
-  { id: 'opt_C', label: 'Kreativ', tone: 'CREATIVE', content: `Wurde dein Handy von Aliens entführt? 🛸 Scherz ${leadName}, alles gut bei dir?`, tags: ['humor'] },
+// Fallback wenn API nicht erreichbar
+const generateFallbackOptions = (leadName: string): ScriptOption[] => [
+  { id: 'opt_soft', label: 'Verständnisvoll', tone: 'EMPATHIC', content: `Hey ${leadName}, ich verstehe total, dass du gerade viel um die Ohren hast. 🙏 Sollen wir nächste Woche nochmal quatschen?`, tags: ['soft'] },
+  { id: 'opt_direct', label: 'Direkt & Klar', tone: 'DIRECT', content: `Lass uns ehrlich sein ${leadName}: Wenn sich nichts ändert, ändert sich nichts. Lass uns starten.`, tags: ['action'] },
+  { id: 'opt_question', label: 'Gegenfrage / Spin', tone: 'INQUISITIVE', content: `${leadName}, was genau hält dich noch zurück? 🤔`, tags: ['question'] },
 ];
 
+// Echter API Call zum FELLO Copilot
+const generateOptions = async (leadName: string, message: string): Promise<ScriptOption[]> => {
+  try {
+    const response = await fetch('https://salesflow-ai.onrender.com/api/copilot/generate-anonymous', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_company: 'Network Marketing',
+        lead_message: message || 'Ich bin mir unsicher',
+        context: `Lead: ${leadName}`
+      })
+    });
+    
+    if (!response.ok) {
+      console.warn('API returned error, using fallback');
+      return generateFallbackOptions(leadName);
+    }
+    
+    const data = await response.json();
+    
+    // Map API response to ScriptOption format
+    if (data.options && data.options.length > 0) {
+      return data.options.map((opt: any) => ({
+        id: opt.id,
+        label: opt.label,
+        tone: opt.tone as ScriptOption['tone'],
+        content: opt.content,
+        tags: opt.tags || []
+      }));
+    }
+    
+    return generateFallbackOptions(leadName);
+  } catch (e) {
+    console.error('API Error:', e);
+    return generateFallbackOptions(leadName);
+  }
+};
+
 export default function MagicScriptScreen({ route, navigation }: any) {
-  const { leadName = 'Lead' } = route.params || {};
+  const { leadName = 'Lead', lastMessage = '' } = route.params || {};
   const [loading, setLoading] = useState(true);
   const [options, setOptions] = useState<ScriptOption[]>([]);
   const [fadeAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTimeout(() => {
-      setOptions(generateMockOptions(leadName));
+    const loadOptions = async () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Echter API Call zum FELLO Copilot
+      const generatedOptions = await generateOptions(leadName, lastMessage);
+      
+      setOptions(generatedOptions);
       setLoading(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-    }, 2000);
-  }, []);
+    };
+    
+    loadOptions();
+  }, [leadName, lastMessage]);
 
   const handleCopy = async (content: string) => {
     await Clipboard.setStringAsync(content);

@@ -15,6 +15,7 @@ import MagicScriptScreen from './src/screens/MagicScriptScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import ScriptsScreen from './src/screens/ScriptsScreen';
 import PaywallScreen from './src/screens/PaywallScreen';
+import ScreenshotImportScreen from './src/screens/ScreenshotImportScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -64,6 +65,7 @@ export default function App() {
         <Stack.Screen name="LeadDetailScreen" component={LeadDetailScreen} />
         <Stack.Screen name="MagicScriptScreen" component={MagicScriptScreen} options={{ presentation: 'modal' }} />
         <Stack.Screen name="PaywallScreen" component={PaywallScreen} options={{ presentation: 'modal' }} />
+        <Stack.Screen name="ScreenshotImport" component={ScreenshotImportScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

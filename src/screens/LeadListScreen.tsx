@@ -38,7 +38,12 @@ export default function LeadListScreen({ navigation }: any) {
       <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Meine Kontakte</Text>
-        <TouchableOpacity style={styles.addBtn}><Ionicons name="add" size={24} color={COLORS.background} /></TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity style={styles.scanBtn} onPress={() => navigation.navigate('ScreenshotImport')}>
+            <Ionicons name="scan" size={22} color={COLORS.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addBtn}><Ionicons name="add" size={24} color={COLORS.background} /></TouchableOpacity>
+        </View>
       </View>
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color={COLORS.textMuted} />
@@ -50,7 +55,7 @@ export default function LeadListScreen({ navigation }: any) {
         </TouchableOpacity>
       )} />
       <FlatList data={filteredLeads} keyExtractor={item => item.id} contentContainerStyle={styles.listContent} renderItem={({ item }) => (
-        <TouchableOpacity style={styles.leadCard} onPress={() => { Haptics.selectionAsync(); navigation.navigate('LeadDetailScreen', { leadId: item.id }); }}>
+        <TouchableOpacity style={styles.leadCard} onPress={() => { Haptics.selectionAsync(); navigation.navigate('LeadDetailScreen', { lead: item }); }}>
           <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.charAt(0)}</Text></View>
           <View style={styles.cardContent}>
             <Text style={styles.leadName}>{item.name}</Text>
@@ -70,6 +75,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, marginBottom: 16 },
   headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.text },
   addBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
+  scanBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   searchContainer: { marginHorizontal: 20, marginBottom: 16, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: 12, paddingHorizontal: 12, height: 44 },
   searchInput: { flex: 1, color: COLORS.text, fontSize: 16, marginLeft: 8 },
   tabsList: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
