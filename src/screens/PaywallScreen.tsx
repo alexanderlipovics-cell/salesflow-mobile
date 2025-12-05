@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, StatusBar, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, StatusBar, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../theme';
+import { useSubscription } from '../context/SubscriptionContext';
+
+// ============================================
+// DEV-KONFIGURATION - Später durch echtes Billing ersetzen!
+// ============================================
+const DEV_MODE = true; // <-- Auf false setzen für Production
 
 const { width } = Dimensions.get('window');
 
@@ -35,16 +41,45 @@ const FEATURES = [
 
 export default function PaywallScreen({ navigation }: any) {
   const [selectedPlan, setSelectedPlan] = useState('yearly');
+  const { upgradeToPro } = useSubscription();
 
   const handleSubscribe = async () => {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // TODO: Implement subscription logic
+    
+    if (DEV_MODE) {
+      // ============================================
+      // DEV MODE: Kein echtes Billing, nur Flag setzen
+      // TODO: In Produktion durch echtes Stripe/RevenueCat ersetzen
+      // ============================================
+      upgradeToPro();
+      Alert.alert(
+        '🎉 Testmodus aktiviert!',
+        'Du bist jetzt als Pro-User freigeschaltet.\n\nHinweis: Dies ist ein Test-Setup. In der finalen Version wird hier das echte Abo-System integriert.',
+        [{ text: 'Super!', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
+    
+    // TODO: Echte Subscription-Logik für Production
+    // - Stripe/RevenueCat Integration
+    // - Supabase Auth-Verknüpfung
     navigation.goBack();
   };
 
   const handleRestore = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: Implement restore purchases
+    
+    if (DEV_MODE) {
+      // DEV MODE: Simuliere Wiederherstellung
+      Alert.alert(
+        'Käufe wiederherstellen',
+        'Im Testmodus gibt es keine echten Käufe zum Wiederherstellen.\n\nTippe auf "Jetzt starten" um den Pro-Status zu aktivieren.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    // TODO: Echte Restore-Logik für Production
   };
 
   return (

@@ -14,7 +14,7 @@ interface Lead {
 
 export default function LeadsScreen() {
   const navigation = useNavigation<any>();
-  const { checkCanAddLead, incrementLeadCount, leadCount, isPro } = useSubscription();
+  const { checkCanAddLead, incrementLeadCount, leadCount, leadLimit, isPro } = useSubscription();
   
   const [leads, setLeads] = useState<Lead[]>([
     { id: 1, name: 'Max Mustermann', status: 'Neu', company: 'Muster GmbH' },
@@ -74,9 +74,9 @@ export default function LeadsScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Lead Management</Text>
-          {!isPro && (
+          {!isPro && leadLimit < 100 && (
             <Text style={styles.limitText}>
-              {leadCount}/5 Leads verwendet
+              {leadCount}/{leadLimit} Leads verwendet
             </Text>
           )}
         </View>

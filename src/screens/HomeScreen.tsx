@@ -3,11 +3,12 @@ import { View, Text, StyleSheet, SafeAreaView, StatusBar, ScrollView, TouchableO
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../theme';
+import { useSubscription } from '../context/SubscriptionContext';
 
 const QUICK_ACTIONS = [
   { id: '1', icon: 'flash', label: 'Quick Script', color: COLORS.primary, screen: 'MagicScriptScreen' },
-  { id: '2', icon: 'person-add', label: 'Neuer Lead', color: '#3B82F6', screen: 'LeadDetailScreen' },
-  { id: '3', icon: 'chatbubbles', label: 'Follow-ups', color: COLORS.warning, screen: 'Leads' },
+  { id: '2', icon: 'person-add', label: 'Neuer Lead', color: '#3B82F6', screen: 'CreateLead' },
+  { id: '3', icon: 'chatbubbles', label: 'Follow-ups', color: COLORS.warning, screen: 'MainTabs' },
   { id: '4', icon: 'trophy', label: 'Erfolge', color: COLORS.secondary, screen: null },
 ];
 
@@ -20,6 +21,7 @@ const STATS = [
 
 export default function HomeScreen({ navigation }: any) {
   const [pendingLeads, setPendingLeads] = useState<any[]>([]);
+  const { checkCanAddLead } = useSubscription();
 
   useEffect(() => {
     fetchPendingLeads();
@@ -37,8 +39,22 @@ export default function HomeScreen({ navigation }: any) {
 
   const handleQuickAction = async (action: any) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Spezialbehandlung für "Neuer Lead" - gleiche Logik wie im LeadsScreen
+    if (action.screen === 'CreateLead') {
+      if (!checkCanAddLead()) {
+        // Paywall zeigen, wenn Lead-Limit erreicht
+        navigation.navigate('Paywall', { trigger: 'lead_limit' });
+        return;
+      }
+      // Zur Lead-Erstellung navigieren (ohne unnötige Parameter)
+      navigation.navigate('CreateLead');
+      return;
+    }
+    
+    // Andere Quick Actions
     if (action.screen) {
-      navigation.navigate(action.screen, { leadName: 'Neuer Lead' });
+      navigation.navigate(action.screen);
     }
   };
 

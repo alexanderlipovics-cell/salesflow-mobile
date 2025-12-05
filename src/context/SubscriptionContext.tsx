@@ -5,6 +5,7 @@ import { supabase } from '../services/supabase';
 interface SubscriptionContextType {
   isPro: boolean;
   leadCount: number;
+  leadLimit: number; // Exportiertes Limit für UI-Anzeige
   aiCallsToday: number;
   checkCanAddLead: () => boolean;
   checkCanUseAI: () => boolean;
@@ -16,9 +17,15 @@ interface SubscriptionContextType {
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
+// ============================================
+// DEV-KONFIGURATION - Später durch echtes Billing ersetzen!
+// ============================================
+// TODO: In Produktion auf niedrigere Werte setzen und echtes Stripe/RevenueCat Billing integrieren
+const DEV_MODE = true; // <-- Auf false setzen für Production
+
 // FREE LIMITS
-const FREE_LEAD_LIMIT = 5;
-const FREE_AI_CALLS_PER_DAY = 0; // Free users get no AI
+const FREE_LEAD_LIMIT = DEV_MODE ? 1000 : 5; // DEV: 1000, PROD: 5
+const FREE_AI_CALLS_PER_DAY = DEV_MODE ? 50 : 0; // DEV: 50/Tag, PROD: 0
 
 export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isPro, setIsPro] = useState(false);
@@ -79,7 +86,8 @@ export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   const checkCanUseAI = (): boolean => {
     if (isPro) return true;
-    return false; // Free users cannot use AI
+    // DEV: AI erlaubt bis zum täglichen Limit
+    return aiCallsToday < FREE_AI_CALLS_PER_DAY;
   };
 
   const incrementLeadCount = async () => {
@@ -113,6 +121,7 @@ export const SubscriptionProvider: React.FC<{ children: ReactNode }> = ({ childr
     <SubscriptionContext.Provider value={{
       isPro,
       leadCount,
+      leadLimit: FREE_LEAD_LIMIT, // Für UI-Anzeige exportiert
       aiCallsToday,
       checkCanAddLead,
       checkCanUseAI,

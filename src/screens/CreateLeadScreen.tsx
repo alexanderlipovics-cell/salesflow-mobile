@@ -61,7 +61,7 @@ export default function CreateLeadScreen({ navigation, route }: any) {
       if (!response.ok) throw new Error('Fehler beim Speichern');
       
       Alert.alert('Erfolg', 'Lead wurde angelegt!', [
-        { text: 'OK', onPress: () => navigation.navigate('Main') }
+        { text: 'OK', onPress: () => navigation.navigate('MainTabs') }
       ]);
     } catch (e) {
       Alert.alert('Fehler', 'Lead konnte nicht gespeichert werden');

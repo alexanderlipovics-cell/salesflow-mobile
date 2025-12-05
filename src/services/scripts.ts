@@ -1,5 +1,4 @@
-import { getScripts } from './supabase';
-import type { Script } from '../types';
+import { getScripts, Script } from './supabase';
 
 export async function fetchScripts(company?: string, category?: string): Promise<Script[]> {
   try {
