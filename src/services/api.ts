@@ -30,6 +30,7 @@ interface CopilotResponse {
   message?: string;
   content?: string;
   answer?: string;
+  reply?: string;
   suggestions?: string[];
   analysis?: {
     sentiment?: string;
@@ -61,64 +62,68 @@ export const generateCopilotResponse = async (
   message: string, 
   context?: CopilotContext
 ): Promise<CopilotResponse> => {
-  try {
-    // Primary: Mobile Copilot Endpoint (no auth required)
-    const response = await fetch(`${API_BASE_URL}/api/copilot/mobile/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        message,
-        lead_context: {
-          company: context?.company || 'Network Marketing',
-          name: context?.leadName,
-          situation: context?.situation,
-        },
-        conversation_history: context?.previousMessages || [],
-        vertical: context?.vertical || 'mlm_sales',
-      }),
-    });
+  // Versuche mehrere Endpoints in Reihenfolge
+  const endpoints = [
+    { url: '/api/chat/completion', format: 'completion' },
+    { url: '/api/ai/chat', format: 'simple' },
+    { url: '/api/intelligent-chat/message', format: 'intelligent' },
+  ];
 
-    if (response.ok) {
-      const data = await response.json();
-      // Transform options array to object format if needed
-      if (data.options && Array.isArray(data.options)) {
-        const optionsObj: { soft?: string; direct?: string; question?: string } = {};
-        data.options.forEach((opt: any) => {
-          if (opt.id === 'soft') optionsObj.soft = opt.content;
-          if (opt.id === 'direct') optionsObj.direct = opt.content;
-          if (opt.id === 'question') optionsObj.question = opt.content;
-        });
-        data.options = optionsObj;
+  for (const endpoint of endpoints) {
+    try {
+      let body: any;
+      
+      switch (endpoint.format) {
+        case 'completion':
+          body = {
+            message: message,
+            history: context?.previousMessages || [],
+          };
+          break;
+        case 'simple':
+          body = {
+            message: message,
+            context: context?.vertical || 'mlm_sales',
+          };
+          break;
+        case 'intelligent':
+          body = {
+            message: message,
+            lead_id: null,
+            context: context?.situation || '',
+          };
+          break;
+        default:
+          body = { message };
       }
-      return data;
+
+      const response = await fetch(`${API_BASE_URL}${endpoint.url}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Normalize response format
+        return {
+          response: data.response || data.reply || data.message || data.content || data.answer || '',
+          message: data.message || data.response,
+          options: data.options,
+          analysis: data.analysis,
+        };
+      }
+    } catch (error) {
+      console.log(`Endpoint ${endpoint.url} failed:`, error);
+      continue;
     }
-
-    // Fallback: Simple Chat Endpoint
-    const chatResponse = await fetch(`${API_BASE_URL}/api/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        message,
-        context: 'mlm_sales',
-        history: context?.previousMessages || [],
-      }),
-    });
-
-    if (chatResponse.ok) {
-      return await chatResponse.json();
-    }
-
-    throw new Error(`API Error: ${response.status}`);
-  } catch (error) {
-    console.error('Copilot API Error:', error);
-    throw error;
   }
+
+  // Alle Endpoints fehlgeschlagen
+  throw new Error('Alle API Endpoints nicht erreichbar');
 };
 
 // ============================================
@@ -128,6 +133,7 @@ export const generateCopilotResponse = async (
 interface ChatResponse {
   response: string;
   message?: string;
+  reply?: string;
 }
 
 interface ChatMessage {
@@ -140,7 +146,30 @@ export const sendChatMessage = async (
   history?: ChatMessage[]
 ): Promise<ChatResponse> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/chat`, {
+    // Versuche /api/chat/completion
+    const response = await fetch(`${API_BASE_URL}/api/chat/completion`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        message,
+        history: history || [],
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        response: data.reply || data.response || data.message || '',
+        message: data.message,
+        reply: data.reply,
+      };
+    }
+
+    // Fallback: /api/ai/chat
+    const fallbackResponse = await fetch(`${API_BASE_URL}/api/ai/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -149,12 +178,15 @@ export const sendChatMessage = async (
       body: JSON.stringify({
         message,
         context: 'mlm_sales',
-        history: history || [],
       }),
     });
 
-    if (response.ok) {
-      return await response.json();
+    if (fallbackResponse.ok) {
+      const data = await fallbackResponse.json();
+      return {
+        response: data.response || data.reply || data.message || '',
+        message: data.message,
+      };
     }
 
     throw new Error(`Chat API Error: ${response.status}`);
@@ -169,6 +201,9 @@ export const sendChatCompletion = async (
   temperature: number = 0.7
 ): Promise<ChatResponse> => {
   try {
+    const lastMessage = messages[messages.length - 1]?.content || '';
+    const history = messages.slice(0, -1);
+
     const response = await fetch(`${API_BASE_URL}/api/chat/completion`, {
       method: 'POST',
       headers: {
@@ -176,14 +211,18 @@ export const sendChatCompletion = async (
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        messages,
-        temperature,
-        max_tokens: 1000,
+        message: lastMessage,
+        history: history,
       }),
     });
 
     if (response.ok) {
-      return await response.json();
+      const data = await response.json();
+      return {
+        response: data.reply || data.response || data.message || '',
+        message: data.message,
+        reply: data.reply,
+      };
     }
 
     throw new Error(`Chat Completion API Error: ${response.status}`);
@@ -211,7 +250,8 @@ export const getObjectionResponse = async (
   context?: { company?: string; situation?: string }
 ): Promise<ObjectionResponse | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/objections/handle`, {
+    // Versuche Knowledge API für Einwand-Antworten
+    const response = await fetch(`${API_BASE_URL}/api/knowledge/objection-response`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
